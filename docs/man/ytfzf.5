@@ -726,6 +726,30 @@ The instance of invidious to use.
 .IR default: " https://vid.puffyan.us"
 
 .TP
+.RB $ backend_order
+Ordered youtube backends to try.
+.br
+.IR default: " invidious,youtube-html,yt-dlp"
+
+.TP
+.RB $ backend_timeout_seconds
+Timeout for backend HTTP requests.
+.br
+.IR default: " 12"
+
+.TP
+.RB $ invidious_cache_ttl_seconds
+Time-to-live for invidious instance cache in seconds.
+.br
+.IR default: " 86400"
+
+.TP
+.RB $ backend_strict
+Disable backend fallback and fail after the first backend error.
+.br
+.IR default: " 0"
+
+.TP
 .RB $ pages_to_scrape
 The amount of pages to scrape on youtube/invidious.
 .br

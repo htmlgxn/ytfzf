@@ -6,12 +6,15 @@ MANDIR=${PREFIX}/share/man
 LICENSEDIR=${PREFIX}/share/licenses/ytfzf
 
 YTFZF_SYSTEM_ADDON_DIR=${PREFIX}/share/ytfzf/addons
+YTFZF_SYSTEM_INTERNAL_DIR=${PREFIX}/share/ytfzf/internal
 
 .DEFAULT_GOAL := default
 
 all:
 
 default: install doc
+
+docs: doc
 
 doc:
 	mkdir -p ${DESTDIR}${MANDIR}/man1
@@ -28,8 +31,11 @@ install:
 	chmod 755 ${PROG}
 	cp ${PROG} ${PROG}.bak
 	sed 's_$${YTFZF\_SYSTEM\_ADDON\_DIR:=/usr/local/share/ytfzf/addons}_$${YTFZF\_SYSTEM\_ADDON\_DIR:=${YTFZF_SYSTEM_ADDON_DIR}}_' < ${PROG} > ${PROG}.bak
+	sed -i 's_$${YTFZF\_SYSTEM\_INTERNAL\_DIR:=/usr/local/share/ytfzf/internal}_$${YTFZF\_SYSTEM\_INTERNAL\_DIR:=${YTFZF_SYSTEM_INTERNAL_DIR}}_' ${PROG}.bak
 	mkdir -p ${DESTDIR}${BINDIR}
+	mkdir -p ${DESTDIR}${YTFZF_SYSTEM_INTERNAL_DIR}
 	cp ${PROG}.bak ${DESTDIR}${BINDIR}/${PROG}
+	cp -r internal/* ${DESTDIR}${YTFZF_SYSTEM_INTERNAL_DIR}
 	rm ${PROG}.bak
 
 addons:
@@ -49,6 +55,7 @@ uninstall:
 	rm -rf ${DESTDIR}${LICENSEDIR}
 	rm -f ${DESTDIR}${BINDIR}/${PROG}
 	rm -rf ${DESTDIR}${YTFZF_SYSTEM_ADDON_DIR}
+	rm -rf ${DESTDIR}${YTFZF_SYSTEM_INTERNAL_DIR}
 
 #legacy install locations on linux
 uninstall-old:
@@ -56,4 +63,7 @@ uninstall-old:
 	rm -f /usr/share/man/man1/ytfzf.1*
 	rm -f /usr/share/man/man5/ytfzf.5*
 
-.PHONY: all default install uninstall doc addons uninstall-old
+check:
+	./scripts/check.sh
+
+.PHONY: all default install uninstall doc docs addons uninstall-old check

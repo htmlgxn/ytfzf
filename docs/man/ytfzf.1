@@ -663,6 +663,21 @@ Miscellaneous
 .BI "\-\-ii=instance", "\-\-invidious\-instance=instance"
 Use a different invidious instance.
 .TP
+.BI \-\-backend\-order=csv
+Ordered youtube backends to try.
+.br
+Valid values are
+.I invidious,youtube-html,yt-dlp
+.TP
+.BI \-\-backend\-strict
+Disable backend fallback and fail after the first backend error.
+.TP
+.BI \-\-backend\-timeout=seconds
+Set backend request timeout in seconds.
+.TP
+.BI \-\-inv\-cache\-ttl=seconds
+Set invidious instance cache ttl in seconds.
+.TP
 .BI "\-\-rii", "\-\-refresh\-inv-instance"
 If this flag is provided, refresh instance cache with healthy instances using Invidious API
 .TP

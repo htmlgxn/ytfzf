@@ -7,6 +7,8 @@
 # major.minor.bugs
 YTFZF_VERSION="git-2077.0857c74"
 
+YTFZF_SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
 #ENVIRONMENT VARIABLES {{{
 : "${YTFZF_CONFIG_DIR:=${XDG_CONFIG_HOME:-$HOME/.config}/ytfzf}"
 : "${YTFZF_CONFIG_FILE:=$YTFZF_CONFIG_DIR/conf.sh}"
@@ -18,6 +20,7 @@ YTFZF_VERSION="git-2077.0857c74"
 : "${YTFZF_CUSTOM_THUMBNAILS_DIR:=$YTFZF_CONFIG_DIR/thumbnails}"
 : "${YTFZF_EXTENSIONS_DIR:=$YTFZF_CONFIG_DIR/extensions}"
 : "${YTFZF_CUSTOM_SCRAPERS_DIR:=$YTFZF_CONFIG_DIR/scrapers}"
+: "${YTFZF_SYSTEM_INTERNAL_DIR:=/usr/local/share/ytfzf/internal}"
 
 : "${YTFZF_SYSTEM_ADDON_DIR:=/usr/local/share/ytfzf/addons}"
 
@@ -125,6 +128,9 @@ print_help___ytfzf__() {
 
     UTILITY OPTIONS:
         --channel-link=<link>    Gets the uuid of a youtube channel from a link.
+        --backend-order=<csv>    Ordered youtube backends to try.
+                                 Valid values: invidious,youtube-html,yt-dlp
+        --backend-strict         Disable youtube backend fallback.
 
     PLAYING OPTIONS:
         -d                      Download the selected video(s)
@@ -319,6 +325,8 @@ print_help___ytfzf__() {
         -H                      alias for -c H
 
         --ii=<instance>         The invidious instance to use for scraping.
+        --backend-timeout=<sec> Timeout for backend HTTP requests.
+        --inv-cache-ttl=<sec>   Invidious instance cache ttl in seconds.
 
         --force-youtube         Converts invidious links to youtube links
                                 before playing (enabled by default)
@@ -402,17 +410,19 @@ on_load_fake_extension___ytfzf__() {
 
 on_post_set_vars___ytfzf__() {
 	[ -z "$ytdl_path" ] && { command_exists "yt-dlp" && ytdl_path="yt-dlp" || ytdl_path="youtube-dl"; }
+	: "${backend_order:=invidious,youtube-html,yt-dlp}"
+	: "${backend_timeout_seconds:=12}"
+	: "${invidious_cache_ttl_seconds:=86400}"
+	: "${backend_strict:=0}"
 
 	: "${ytdl_pref:=$video_pref+$audio_pref/best/$video_pref/$audio_pref}"
+	sanitize_backend_order
 
 	: "${shortcut_binds="Enter,double-click,${download_shortcut},${video_shortcut},${audio_shortcut},${detach_shortcut},${print_link_shortcut},${show_formats_shortcut},${info_shortcut},${search_again_shortcut},${custom_shortcut_binds},${custom_shortcut_binds}"}"
 
 	[ ! -d "$cache_dir" ] && mkdir -p "$cache_dir"
 
-	# If file doesn't already exist (or if force-refresh is requested), cURL and cache it.
-	# CHECK: implement check for force-request
-	# CHECK: added --refresh-inv-instances to optargs
-	[ ! -f "$instances_file" ] && refresh_inv_instances
+	ensure_fresh_invidious_instances
 
 	: "${invidious_instance:=$(get_random_invidious_instance)}"
 
@@ -605,13 +615,29 @@ def pad_left(n; num):
 # }}}
 
 # Invidious{{{
+_file_age_seconds() {
+	_file="$1"
+	[ ! -f "$_file" ] && { printf "%s\n" "-1"; return 0; }
+	_now=$(date +%s)
+	if _mtime=$(stat -c %Y "$_file" 2>/dev/null); then
+		:
+	elif _mtime=$(stat -f %m "$_file" 2>/dev/null); then
+		:
+	else
+		printf "%s\n" "-1"
+		return 0
+	fi
+	printf "%s\n" "$((_now - _mtime))"
+}
+
 refresh_inv_instances() {
 	print_info "Fetching list of healthy invidious instances ..." &&
 		# The pipeline does the following:
 		#   - Fetches the avaiable invidious instances
 		#   - Gets the one where the api is public
 		#   - Puts them in a list
-		curl -X GET -sSf "$instances_url" | jq -r '[.[]|select(.[1].api==true)|.[1].uri]|join("\n")' >"$instances_file"
+		curl -X GET -sSf "$instances_url" | jq -r '[.[]|select(.[1].api==true)|.[1].uri]|join("\n")' >"$instances_file.tmp" &&
+		mv "$instances_file.tmp" "$instances_file"
 }
 
 get_invidious_instances() {
@@ -620,6 +646,12 @@ get_invidious_instances() {
 
 get_random_invidious_instance() {
 	shuf "$instances_file" | head -n 1
+}
+
+ensure_fresh_invidious_instances() {
+	_age="$(_file_age_seconds "$instances_file")"
+	[ "$_age" -lt 0 ] && refresh_inv_instances && return 0
+	[ "$_age" -gt "${invidious_cache_ttl_seconds:-86400}" ] && refresh_inv_instances
 }
 # }}}
 
@@ -630,6 +662,8 @@ _get_request() {
 	# Get search query from youtube
 	curl -f "$_base_url" -s -L \
 		"$@" \
+		--connect-timeout "${backend_timeout_seconds:-12}" \
+		--max-time "${backend_timeout_seconds:-12}" \
 		-H "User-Agent: $useragent" \
 		-H 'Accept-Language: en-US,en;q=0.9' \
 		--compressed
@@ -697,6 +731,29 @@ end_modify_ifs() {
 # }}}
 
 #general util{{{
+sanitize_backend_order() {
+	_old_ifs=$IFS
+	IFS=","
+	set -- $backend_order
+	IFS=$_old_ifs
+	_clean_order=""
+	for _backend in "$@"; do
+		case "$(trim_blank "$_backend")" in
+		invidious | youtube-html | yt-dlp)
+			_clean_order="${_clean_order},$(trim_blank "$_backend")"
+			;;
+		yt_html)
+			_clean_order="${_clean_order},youtube-html"
+			;;
+		ytdlp)
+			_clean_order="${_clean_order},yt-dlp"
+			;;
+		esac
+	done
+	_clean_order="${_clean_order#,}"
+	[ -z "$_clean_order" ] && _clean_order="invidious,youtube-html,yt-dlp"
+	backend_order="$_clean_order"
+}
 
 _get_real_channel_link() {
 	_input_link=$(trim_blank "$1")
@@ -1418,6 +1475,10 @@ set_vars() {
 	#misc
 	instances_url="https://api.invidious.io/instances.json?sort_by=type,health,api"
 	instances_file="$cache_dir/instancesV2.json"
+	backend_order="invidious,youtube-html,yt-dlp"
+	backend_timeout_seconds="12"
+	invidious_cache_ttl_seconds="86400"
+	backend_strict="0"
 
 	# read from environment to reset any variables to what the user set
 
@@ -1532,6 +1593,13 @@ load_fake_extension "__ytfzf__" "1"
 # For information on how to format an action, see the handle_actions function.
 
 # Scraping backends {{{
+
+# shellcheck disable=SC1091
+if [ -f "${YTFZF_SCRIPT_DIR}/internal/backend.sh" ]; then
+	. "${YTFZF_SCRIPT_DIR}/internal/backend.sh"
+elif [ -f "${YTFZF_SYSTEM_INTERNAL_DIR}/backend.sh" ]; then
+	. "${YTFZF_SYSTEM_INTERNAL_DIR}/backend.sh"
+fi
 
 _start_series_of_threads() {
 	_thread_count=0
@@ -2052,8 +2120,14 @@ scrape_invidious_search() {
 	printf "%s\n" "$_ivs_cur_page" >"${session_temp_dir}/invidious_search-current-page"
 }
 
-scrape_youtube() { scrape_invidious_search "$@"; }
-scrape_Y() { scrape_invidious_search "$@"; }
+scrape_youtube() {
+	if command_exists "scrape_youtube_with_backends"; then
+		scrape_youtube_with_backends "$@"
+	else
+		scrape_invidious_search "$@"
+	fi
+}
+scrape_Y() { scrape_youtube "$@"; }
 
 scrape_next_page_invidious_search() {
 	# we can do this because _comment_file is overritten every time, meaning it will contain the latest scrape
@@ -3395,6 +3469,10 @@ parse_opt() {
 	thumbnail-log) thumbnail_debug_log="${optarg:-/dev/stderr}" ;;
 	odysee-video-count) odysee_video_search_count="$optarg" ;;
 	ii | inv-instance) invidious_instance="$optarg" ;;
+	backend-order) backend_order="$optarg" ;;
+	backend-strict) backend_strict="${optarg:-1}" ;;
+	backend-timeout) backend_timeout_seconds="${optarg}" ;;
+	inv-cache-ttl) invidious_cache_ttl_seconds="${optarg}" ;;
 	rii | refresh-inv-instances) refresh_inv_instances ;;
 	i | interface) load_interface "$optarg" || die 2 "$optarg is not an interface" ;;
 	c | scrape) scrape=$optarg ;;

@@ -12,6 +12,10 @@
 ##scrape 1 video link per channel instead of the default 2
 #sub_link_count=1
 #show_thumbnails=1
+#backend_order="invidious,youtube-html,yt-dlp"
+#backend_timeout_seconds=12
+#invidious_cache_ttl_seconds=86400
+#backend_strict=0
 ##}}}
 #
 ##Functions {{{

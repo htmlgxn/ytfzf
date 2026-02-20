@@ -6,10 +6,11 @@ jobs:
   ubuntu:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2.4.0
+    - uses: actions/checkout@v4
     - name: install_dependencies
       run: |
-        sudo apt install curl jq
+        sudo apt-get update
+        sudo apt-get install -y curl jq make dash bash perl python3 shellcheck
     - name: build
       run: |
         sudo make install
@@ -20,8 +21,11 @@ jobs:
         sudo make uninstall
     - name: build_docs
       run: |
-        sudo make docs
+        sudo make doc
         sudo make uninstall
+    - name: check
+      run: |
+        make check
     - name: run_program_version
       run: |
         make install

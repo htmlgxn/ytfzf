@@ -1,6 +1,7 @@
 # NOTICE
 
-This project is no longer actively maintained, it should still work for the foreseeable future
+This forked version of ytfzf is functional as of 2026.2.19
+Modernization follows strict compatibility with additive improvements.
 
 ---
 
@@ -17,7 +18,7 @@ This project is no longer actively maintained, it should still work for the fore
 	<a href="https://matrix.to/#/#ytfzf-chat:matrix.org"><img src="https://img.shields.io/static/v1?color=%230eb687&message=chat&logo=matrix&label=matrix&style=flat-square" alt="Discord"></a>
     <br />
     <br />
-    <i>A POSIX script that helps you find Youtube videos (without API) and opens/downloads them using mpv/youtube-dl</i>
+    <i>A POSIX script that helps you find Youtube videos (without API) and opens/downloads them using mpv/yt-dlp</i>
 	<hr>
 </p>
 
@@ -32,14 +33,24 @@ This project is no longer actively maintained, it should still work for the fore
 
 # Table Of Contents
 
-- [`Dependencies`](#Dependencies)
-- [`Install`](#Install)
-- [`Features`](#Features)
-- [`Examples`](#Examples)
-- [`Configuration`](#Configuration)
-- [`Bugs`](#Bugs)
-- [`Contributing`](#Contributing)
-- [`Credits`](#Credits)
+- [NOTICE](#notice)
+- [Table Of Contents](#table-of-contents)
+- [Dependencies](#dependencies)
+  - [Required dependencies](#required-dependencies)
+  - [Recommended dependencies](#recommended-dependencies)
+  - [Optional dependencies](#optional-dependencies)
+    - [Thumbnail Viewers](#thumbnail-viewers)
+- [Install](#install)
+  - [Addons](#addons)
+    - [Usage](#usage)
+- [Backend Fallback](#backend-fallback)
+- [Addon Contract](#addon-contract)
+- [Features](#features)
+- [Examples](#examples)
+- [Configuration](#configuration)
+- [Bugs](#bugs)
+- [Contributing](#contributing)
+- [Credits](#credits)
 
 ---
 
@@ -131,6 +142,47 @@ To use a url-handler addon run `ytfzf -u <handler> ...`
 To use a sort-name addon run `ytfzf --sort-name=<sort-name> ...`
 
 To use an extension addon run `ytfzf -e <extension> ...`
+
+# Backend Fallback
+
+The youtube scraper now supports ordered backend fallback:
+
+- `invidious`
+- `youtube-html`
+- `yt-dlp`
+
+Defaults:
+
+- `backend_order="invidious,youtube-html,yt-dlp"`
+- `backend_timeout_seconds="12"`
+- `invidious_cache_ttl_seconds="86400"`
+- `backend_strict="0"`
+
+CLI overrides:
+
+```sh
+ytfzf --backend-order=invidious,yt-dlp --backend-timeout=12 --inv-cache-ttl=86400
+```
+
+Use `--backend-strict` to disable fallback.
+
+# Addon Contract
+
+Addons should follow these rules:
+
+- Include a valid shebang for their interpreter.
+- Be executable.
+- Scrapers expose `scrape_<name>()`.
+- Interfaces expose `interface_<name>()`.
+- Url-handlers are executable commands and read the url-handler prelude line.
+- Sort names expose `get_sort_by()`.
+- Extensions expose hook functions as needed.
+
+Scraper JSON should contain:
+
+- required keys: `ID`, `url`, `title`
+- recommended key: `scraper`
+- optional keys: `thumbs`, `channel`, `duration`, `views`, `date`, `description`, `action`
 
 ---
 
