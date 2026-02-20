@@ -1,7 +1,7 @@
 # NOTICE
 
-This forked version of ytfzf is functional as of 2026.2.19
-Modernization follows strict compatibility with additive improvements.
+- This forked version of ytfzf is functional as of 2026.2.19
+- Modernization follows strict compatibility with additive improvements.
 
 ---
 
